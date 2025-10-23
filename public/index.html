@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Chat</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+  <style>
+    body { max-width: 720px; margin: 0 auto; padding: 16px; }
+    #messages { height: 60vh; overflow:auto; border:1px solid #e2e8f0; padding:12px; border-radius:8px; background:white; }
+    .msg { margin-bottom: 8px; }
+    .meta { font-size: 12px; color: #555; }
+    .system { color:#666; font-style:italic; }
+    form { display:flex; gap:8px; margin-top:10px; }
+    input[type="text"] { flex:1; padding:8px; }
+    button { padding:8px 12px; }
+  </style>
+</head>
+<body>
+  <h1>Simple Chat</h1>
+  <p>Open this page on two phones (same Wi‑Fi) to chat.</p>
+
+  <label for="name">Your name</label>
+  <input id="name" placeholder="Enter a name (optional)" />
+  <div id="status">Not connected</div>
+
+  <div id="messages" aria-live="polite"></div>
+
+  <form id="form">
+    <input id="input" autocomplete="off" placeholder="Type a message..." />
+    <button>Send</button>
+  </form>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const messagesEl = document.getElementById('messages');
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const nameInput = document.getElementById('name');
+    const status = document.getElementById('status');
+
+    function addMessage(m, opts = {}) {
+      const el = document.createElement('div');
+      el.className = 'msg';
+      if (opts.system) {
+        el.innerHTML = '<div class="system">' + (m.text || m) + ' <span class="meta">(' + new Date(m.time || Date.now()).toLocaleTimeString() + ')</span></div>';
+      } else {
+        el.innerHTML = '<strong>' + (m.name || 'Anon') + '</strong>: ' + (m.text) + '<div class="meta">' + new Date(m.time).toLocaleString() + '</div>';
+      }
+      messagesEl.appendChild(el);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    socket.on('connect', () => {
+      status.textContent = 'Connected';
+      const name = localStorage.getItem('chat_name') || '';
+      nameInput.value = name;
+      socket.emit('join', name || 'Anonymous');
+    });
+
+    socket.on('disconnect', () => status.textContent = 'Disconnected');
+
+    socket.on('load-history', (msgs) => {
+      messagesEl.innerHTML = '';
+      msgs.forEach(m => addMessage(m));
+    });
+
+    socket.on('chat-message', (m) => addMessage(m));
+    socket.on('system-message', (m) => addMessage(m, {system:true}));
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      socket.emit('chat-message', text);
+      input.value = '';
+    });
+
+    nameInput.addEventListener('change', () => {
+      localStorage.setItem('chat_name', nameInput.value || '');
+      socket.emit('join', nameInput.value || 'Anonymous');
+    });
+  </script>
+</body>
+</html>
